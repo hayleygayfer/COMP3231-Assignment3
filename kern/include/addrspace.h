@@ -40,13 +40,19 @@
 
 struct vnode;
 
-
 /*
  * Address space - data structure associated with the virtual memory
  * space of a process.
  *
  * You write this.
  */
+
+typedef struct as_region {
+	vaddr_t as_vaddr;
+	size_t size;
+	uint32_t flags;
+	struct as_region *next;
+}region;
 
 struct addrspace {
 #if OPT_DUMBVM
@@ -59,6 +65,12 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
+
+		/* 3 Level Page Table */
+		paddr_t ***as_pte;
+
+		/* Linked list of as_region structs */
+		region *as_regions;
 #endif
 };
 

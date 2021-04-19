@@ -8,6 +8,21 @@
 
 /* Place your page table functions here */
 
+int vm_initPT(paddr_t **oldPTE, uint32_t msb) {
+    return 0;
+}
+
+int vm_addPTE(paddr_t **oldPTE, uint32_t msb, uint32_t ssb, uint32_t lsb) {
+    return 0;
+}
+
+int vm_freePTE(paddr_t **oldPTE) {
+    return 0;
+}
+
+int vm_copyPTE(paddr_t **oldPTE, paddr_t **newPTE) {
+    return 0;
+}
 
 void vm_bootstrap(void)
 {

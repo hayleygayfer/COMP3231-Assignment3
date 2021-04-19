@@ -36,7 +36,6 @@
  * You'll probably want to add stuff here.
  */
 
-
 #include <machine/vm.h>
 
 /* Fault-type arguments to vm_fault() */
@@ -44,6 +43,11 @@
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
+/* PTE functions */
+int vm_initPT(paddr_t **oldPTE, uint32_t msb);
+int vm_addPTE(paddr_t **oldPTE, uint32_t msb, uint32_t ssb, uint32_t lsb);
+int vm_freePTE(paddr_t **oldPTE);
+int vm_copyPTE(paddr_t **oldPTE, paddr_t **newPTE);
 
 /* Initialization function */
 void vm_bootstrap(void);
