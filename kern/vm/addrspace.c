@@ -38,6 +38,7 @@
 #include <vm.h>
 #include <proc.h>
 
+#define PT_LVL1_SIZE
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
@@ -54,13 +55,27 @@ as_create(void)
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
+	
 	if (as == NULL) {
 		return NULL;
 	}
+	
+	/* Initialise 3 Level Page Table
+	 * 1st level - 2^8 = 256 entries
+	 * 2nd level - 2^6 = 64 entries 
+	 * 3rd level - 2^6 = 64 entries
+	 * 
+	 * Lazy data structure, so the contents of the page table are
+	 * only allocated when they are needed.
+	 *
+	 * Newly allocated frames used to back pages should be zero-filled
+	 * prior to mapping 
+	 */	
 
-	/*
-	 * Initialize as needed.
-	 */
+	as->as_pagetable = NULL; // CHECK THIS
+
+	/* No regions initially */
+	as->as_regions = NULL;
 
 	return as;
 }
@@ -71,7 +86,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	struct addrspace *newas;
 
 	newas = as_create();
-	if (newas==NULL) {
+	if (newas == NULL) {
 		return ENOMEM;
 	}
 
@@ -88,9 +103,27 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
+	/* clean up page table
+	 * 1st level - 2^8 = 256 entries
+	 * 2nd level - 2^6 = 64 entries 
+	 * 3rd level - 2^6 = 64 entries
 	 */
+
+	/* TO-DO: add some loops here */
+
+
+	kfree(as->as_pagetable);
+	
+
+	/* deallocate frames used */
+
+	/* clean up list of region structs */
+	region *curr = as->as_regions;
+	while (curr != NULL) {
+		region *to_free = curr;
+		curr = curr->next;
+		kfree(to_free);
+	}
 
 	kfree(as);
 }
@@ -98,9 +131,13 @@ as_destroy(struct addrspace *as)
 void
 as_activate(void)
 {
+	/* copied from dumbvm */
+
+	int i, spl;
 	struct addrspace *as;
 
 	as = proc_getas();
+
 	if (as == NULL) {
 		/*
 		 * Kernel thread without an address space; leave the
@@ -109,9 +146,14 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	spl = splhigh();
+
+	for (i = 0; i < NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+
+	splx(spl);
 }
 
 void
@@ -122,6 +164,7 @@ as_deactivate(void)
 	 * anything. See proc.c for an explanation of why it (might)
 	 * be needed.
 	 */
+
 }
 
 /*
@@ -154,8 +197,9 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 int
 as_prepare_load(struct addrspace *as)
 {
+	//ada
 	/*
-	 * Write this.
+	 * Write this. 
 	 */
 
 	(void)as;
@@ -165,6 +209,7 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
+	//ada 
 	/*
 	 * Write this.
 	 */
