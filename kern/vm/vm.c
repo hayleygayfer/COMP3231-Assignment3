@@ -8,20 +8,31 @@
 
 /* Place your page table functions here */
 
-int vm_initPT(paddr_t **pagetable, uint32_t msb, uint32_t ssb) {
+int vm_initPT(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
     
     /* 1st level of the page table is indexed by 8 most significant bits */
+    pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);
+
+    if (pagetable == NULL)
+        return ENOMEM; /* out of memory */
+
+    for (int i = 0; i < PT_LVL1_SIZE; i++) {
+        /* lazy allocated so initialise to NULL */
+        pagetable[i] = NULL;
+    }
+
+    /* 2nd level of the page table indexed by 6 second-most significant bits */
     pagetable[msb] = kmalloc(sizeof(paddr_t *) * PT_LVL2_SIZE);
-    
+
     if (pagetable[msb] == NULL)
         return ENOMEM; /* out of memory */
-    
+
     for (int i = 0; i < PT_LVL2_SIZE; i++) {
         /* lazy allocated so initialise to NULL */
         pagetable[msb][i] = NULL;
     }
 
-    /* 2nd level of the page table indexed by 6 second-most significant bits */
+    /* 3rd level of the page table indexed by 6 second-most significant bits */
     pagetable[msb][ssb] = kmalloc(sizeof(paddr_t) * PT_LVL3_SIZE);
     
     if (pagetable[msb][ssb] == 0)
@@ -35,7 +46,7 @@ int vm_initPT(paddr_t **pagetable, uint32_t msb, uint32_t ssb) {
     return 0;
 }
 
-int vm_addPTE(paddr_t **pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb) {
+int vm_addPTE(paddr_t ***pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb) {
 
     /* ADD PAGE TABLE ENTRY */
 
@@ -56,36 +67,36 @@ int vm_addPTE(paddr_t **pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb) {
      * dirty bit - write privilege bit; indicates modified in memory 
      */
     
-    pagetable[msb][ssb][lsb] = (frame & TLBLO_PPAGE) | TLBLO_VALID | TLBLO_DIRTY;
+    pagetable[msb][ssb][lsb] = (frame & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
 
     return 0;
 }
 
 
-// int vm_freePT(paddr_t **pagetable) {
+int vm_freePT(paddr_t ***pagetable) {
     
-//     /* loop through first level */
-//     for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
+    /* loop through first level */
+    for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
         
-//         /* loop through second level */
-//         for (int ssb = 0; ssb < PT_LVL2_SIZE; ssb++) {
+        /* loop through second level */
+        for (int ssb = 0; ssb < PT_LVL2_SIZE; ssb++) {
 
-//             /* loop through third level */
-//             for (int lsb = 0; lsb < PT_LVL3_SIZE; slb++) {
+            /* loop through third level */
+            for (int lsb = 0; lsb < PT_LVL3_SIZE; lsb++) {
 
-//                 /* delete frame */
-//                 paddr_t paddr = pagetable[msb][ssb][lsb] & TABLO_PPAGE;
-//                 vaddr_t kpage = PADDR_TO_KVADDR(paddr);
-//                 free_kpage(kpage);
+                /* delete frame */
+                paddr_t paddr = pagetable[msb][ssb][lsb] & PAGE_FRAME;
+                vaddr_t kpage = PADDR_TO_KVADDR(paddr);
+                free_kpages(kpage);
 
-//                 pagetable[msb][ssb][lsb] = NULL;
-//             }
-//             kfree(pagetable[msb][ssb]);
-//         }
-//         kfree(pagetable[msb]);
-//     }    
-//     return 0;
-// }
+                pagetable[msb][ssb][lsb] = 0;
+            }
+            kfree(pagetable[msb][ssb]);
+        }
+        kfree(pagetable[msb]);
+    }    
+    return 0;
+}
 
 
 void vm_bootstrap(void)

@@ -52,13 +52,13 @@
 /* PTE functions */
 
 /* initialise page table and zero-fill */
-int vm_initPT(paddr_t **pagetable, uint32_t msb, uint32_t ssb);
+int vm_initPT(paddr_t ***pagetable, uint32_t msb, uint32_t ssb);
 
 /* add page table entry to page table */
-int vm_addPTE(paddr_t **pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb);
+int vm_addPTE(paddr_t ***pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb);
 
-/* free page table... do we need this? */
-int vm_freePT(paddr_t **pagetable);
+/* free page table */
+int vm_freePT(paddr_t ***pagetable);
 
 /* Initialization function */
 void vm_bootstrap(void);
