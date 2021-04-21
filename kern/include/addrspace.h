@@ -66,11 +66,12 @@ struct addrspace {
 #else
         /* Put stuff here for your VM system */
 
-		/* 3 Level Page Table */
-		paddr_t ***as_pte;
+        /* 3 Level Page Table */
+        paddr_t ***as_pagetable;
 
-		/* Linked list of as_region structs */
-		region *as_regions;
+        /* Linked list of as_region structs */
+        region *as_regions;
+
 #endif
 };
 

@@ -38,16 +38,27 @@
 
 #include <machine/vm.h>
 
+/* page table level sizes */
+#define PT_LVL1_SIZE 256
+#define PT_LVL2_SIZE 64
+#define PT_LVL3_SIZE 64
+
 /* Fault-type arguments to vm_fault() */
+
 #define VM_FAULT_READ        0    /* A read was attempted */
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
 /* PTE functions */
-int vm_initPT(paddr_t **oldPTE, uint32_t msb);
-int vm_addPTE(paddr_t **oldPTE, uint32_t msb, uint32_t ssb, uint32_t lsb);
-int vm_freePTE(paddr_t **oldPTE);
-int vm_copyPTE(paddr_t **oldPTE, paddr_t **newPTE);
+
+/* initialise page table and zero-fill */
+int vm_initPT(paddr_t **pagetable, uint32_t msb, uint32_t ssb);
+
+/* add page table entry to page table */
+int vm_addPTE(paddr_t **pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb);
+
+/* free page table... do we need this? */
+int vm_freePT(paddr_t **pagetable);
 
 /* Initialization function */
 void vm_bootstrap(void);
