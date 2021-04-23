@@ -72,6 +72,12 @@ int vm_addPTE(paddr_t ***pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb) {
     return 0;
 }
 
+int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
+    (void)old_pt;
+    (void)new_pt;
+    return 0;
+}
+
 
 int vm_freePT(paddr_t ***pagetable) {
     

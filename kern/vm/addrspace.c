@@ -37,6 +37,7 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include <elf.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -58,6 +59,21 @@ as_create(void)
 	if (as == NULL) {
 		return NULL;
 	}
+
+	// set stack to USERSTACK
+	as->as_stack = USERSTACK;
+	// No regions initially
+	as->as_regions = NULL;
+
+	as->as_pagetable = (paddr_t ***)alloc_kpages(1);
+	// check if not enough memory
+	if (as->as_pagetable == NULL) {
+		kfree(as);
+		return NULL;
+	}
+
+	// all pagetable entries set to 0 at start (I think this is correct)
+	for (int i = 0; i < PT_LVL1_SIZE; i++) as->as_pagetable[i] = 0;
 	
 	/* Initialise 3 Level Page Table
 	 * 1st level - 2^8 = 256 entries
@@ -70,11 +86,6 @@ as_create(void)
 	 * Newly allocated frames used to back pages should be zero-filled
 	 * prior to mapping 
 	 */	
-
-	as->as_pagetable = NULL; // CHECK THIS
-
-	/* No regions initially */
-	as->as_regions = NULL;
 
 	return as;
 }
@@ -89,11 +100,47 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	// initialise fields
+	newas->as_stack = old->as_stack;
+	newas->as_regions = NULL;
 
-	(void)old;
+	// copy over the regions
+	region *old_regions; // old regions
+	region *new_regions = NULL; // new regions
+	// loop through old regions
+	for (old_regions = old->as_regions; old_regions != NULL; old_regions = old_regions->next) {
+		region *temp = kmalloc(sizeof(region));
+		// check if no memory
+		if (temp == NULL) {
+			as_destroy(newas);
+			return ENOMEM;
+		}
+
+		// copy old region to temp
+		temp->as_vaddr = old_regions->as_vaddr;
+		temp->size = old_regions->size;
+		temp->flags = old_regions->flags;
+		temp->o_flags = old_regions->o_flags;
+		temp->next = NULL;
+
+		// append to the end of the new regions list
+		if (new_regions != NULL) {
+			// new_regions is not empty
+			new_regions->next = temp;
+		} else {
+			// new_regions is empty
+			newas->as_regions = temp;
+			new_regions = temp;
+		}
+	}
+
+	int res = vm_copyPTE(old->as_pagetable, newas->as_pagetable);
+	if (res != 0) {
+		// unable to copy over pagetable
+		as_destroy(newas);
+		// return error code
+		return res;
+	}
 
 	*ret = newas;
 	return 0;
@@ -102,17 +149,14 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
+	if (as == NULL) return;
 	/* clean up page table
 	 * 1st level - 2^8 = 256 entries
 	 * 2nd level - 2^6 = 64 entries 
 	 * 3rd level - 2^6 = 64 entries
 	 */
-
-	/* TO-DO: add some loops here */
-
-
-	kfree(as->as_pagetable);
-	
+	// freeing pagetable
+	vm_freePT(as->as_pagetable);
 
 	/* deallocate frames used */
 
@@ -163,7 +207,7 @@ as_deactivate(void)
 	 * anything. See proc.c for an explanation of why it (might)
 	 * be needed.
 	 */
-
+	as_activate();
 }
 
 /*
@@ -180,50 +224,88 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	// Error checking: Bad memory reference
+	if (as == NULL) return EFAULT;
+	// Not enough spare memory on stack
+	if (vaddr + memsize >= as->as_stack) return ENOMEM;
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-	return ENOSYS; /* Unimplemented */
+	// page alignment from dumbvm.c
+	/* ALIGN REGION */
+	// Base
+	memsize += vaddr & ~(vaddr_t)PAGE_FRAME;
+	vaddr &= PAGE_FRAME;
+	// Length
+	memsize = (memsize + PAGE_SIZE - 1) & PAGE_FRAME;
+
+	region *new_regions = kmalloc(sizeof(region));
+	// out of memory error
+	if (new_regions == NULL) return ENOMEM;
+
+	new_regions->as_vaddr = vaddr;
+	new_regions->size = memsize;
+	new_regions->flags = 0;
+
+	// Set flags according to readable, writeable and executable
+	if (readable) new_regions->flags |= PF_R;
+	if (writeable) new_regions->flags |= PF_W;
+	if (executable) new_regions->flags |= PF_X;
+	new_regions -> o_flags = new_regions -> flags;
+
+	new_regions->next = as->as_regions;
+
+	return 0;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	//ada
-	/*
-	 * Write this. 
-	 */
+	//Error checking: bad memory reference
+	if (as == NULL) return EFAULT;
 
-	(void)as;
+	region *old_regions = as->as_regions;
+	// loop through and set all readonly regions to readwrite for prepare load
+	while (old_regions != NULL) {
+		if((old_regions->flags & PF_W) != PF_W) {
+			old_regions->flags |= PF_W;
+		}
+		old_regions = old_regions->next;
+	}
+
 	return 0;
 }
 
 int
 as_complete_load(struct addrspace *as)
 {
-	//ada 
-	/*
-	 * Write this.
-	 */
+	// Error checking: bad memory reference 
+	if (as == NULL) return EFAULT;
 
-	(void)as;
+	region *old_regions = as->as_regions;
+	while (old_regions != NULL) {
+		// check if flags have been modified in prepare_load
+		if (old_regions->flags == old_regions->o_flags) old_regions = old_regions->next;
+		else {
+			// set flags back to original flags
+			old_regions->flags = old_regions->o_flags;
+			old_regions = old_regions->next;
+		}
+	}
+
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	int spl = splhigh();
+
+	for (int i = 0; i < NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+
+	splx(spl);
+
 	return 0;
 }
 
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
-
 	(void)as;
 
 	/* Initial user-level stack pointer */

@@ -57,6 +57,9 @@ int vm_initPT(paddr_t ***pagetable, uint32_t msb, uint32_t ssb);
 /* add page table entry to page table */
 int vm_addPTE(paddr_t ***pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb);
 
+/* copy page table into new address */
+int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt);
+
 /* free page table */
 int vm_freePT(paddr_t ***pagetable);
 

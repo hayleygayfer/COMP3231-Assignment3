@@ -51,6 +51,7 @@ typedef struct as_region {
 	vaddr_t as_vaddr;
 	size_t size;
 	uint32_t flags;
+        uint32_t o_flags;
 	struct as_region *next;
 }region;
 
@@ -65,6 +66,7 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
+        vaddr_t as_stack;
 
         /* 3 Level Page Table */
         paddr_t ***as_pagetable;
