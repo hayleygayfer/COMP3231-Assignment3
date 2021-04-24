@@ -199,14 +199,18 @@ int vm_freePT(paddr_t ***pagetable) {
 
             /* loop through third level */
             for (int lsb = 0; lsb < PT_LVL3_SIZE; lsb++) {
-
                 /* delete frame */
-                paddr_t paddr = pagetable[msb][ssb][lsb] & PAGE_FRAME;
-                vaddr_t kpage = PADDR_TO_KVADDR(paddr);
-                free_kpages(kpage);
 
-                pagetable[msb][ssb][lsb] = 0;
+                if (pagetable[msb][ssb][lsb]) {
+
+                    paddr_t paddr = pagetable[msb][ssb][lsb] & PAGE_FRAME;
+                    vaddr_t kpage = PADDR_TO_KVADDR(paddr);
+                    free_kpages(kpage);
+                    pagetable[msb][ssb][lsb] = 0;
+
+                }
             }
+
             kfree(pagetable[msb][ssb]);
         }
         kfree(pagetable[msb]);
