@@ -260,7 +260,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* look up region */
     region *faultregion = lookup_region(curproc->p_addrspace, faultaddress);
-
     /* check valid region */
     if (faultregion == NULL)
         return EFAULT;

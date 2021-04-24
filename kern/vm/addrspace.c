@@ -39,6 +39,9 @@
 #include <proc.h>
 #include <elf.h>
 
+#define STACK_PAGES		512
+#define STACK_MEMSIZE	STACK_PAGES * PAGE_SIZE
+
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
@@ -231,12 +234,15 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
 	// Error checking: Bad memory reference
-	if (as == NULL) 
+	if (as == NULL) {
 		return EFAULT;
-	
+	}
+		
 	// Not enough spare memory on stack
-	if (vaddr + memsize >= as->as_stack)
+	// changed this to > ...TODO 
+	if (vaddr + memsize > as->as_stack) {
 		return ENOMEM;
+	}
 
 	// page alignment from dumbvm.c
 	/* ALIGN REGION */
@@ -311,7 +317,8 @@ int
 as_complete_load(struct addrspace *as)
 {
 	// Error checking: bad memory reference 
-	if (as == NULL) return EFAULT;
+	if (as == NULL) 
+		return EFAULT;
 
 	region *old_regions = as->as_regions;
 	while (old_regions != NULL) {
@@ -341,10 +348,10 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	(void)as;
-	// as_define_region(as, USERSTACK, , 1, 1, 0);
+	// (void)as;
+	
+	as_define_region(as, USERSTACK - STACK_MEMSIZE, STACK_MEMSIZE, 1, 1, 0);
 	/* Initial user-level stack pointer */
-
 	*stackptr = USERSTACK;
 
 	return 0;
