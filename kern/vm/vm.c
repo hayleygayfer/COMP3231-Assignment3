@@ -32,7 +32,7 @@ uint32_t get_lsb (uint32_t addr) {
 /* Place your page table functions here */
 
 int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
-
+ 
     uint32_t msb = get_msb (faultaddress);
     uint32_t ssb = get_ssb (faultaddress);
     
@@ -66,11 +66,13 @@ int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
 }
 
 int vm_init_first_level(paddr_t ***pagetable) {
-    
+     
     pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);
 
-    if (pagetable == NULL)
+    if (pagetable == NULL) {
+        kfree(pagetable);
         return ENOMEM; /* out of memory */
+    }
 
     for (int i = 0; i < PT_LVL1_SIZE; i++) {
         /* lazy allocated so initialise to NULL */
@@ -84,9 +86,10 @@ int vm_init_second_level(paddr_t ***pagetable, uint32_t msb) {
 
     pagetable[msb] = kmalloc(sizeof(paddr_t *) * PT_LVL2_SIZE);
 
-    if (pagetable[msb] == NULL)
+    if (pagetable[msb] == NULL) {
+        kfree(pagetable[msb]);
         return ENOMEM; /* out of memory */
-
+    }
     for (int i = 0; i < PT_LVL2_SIZE; i++) {
         /* lazy allocated so initialise to NULL */
         pagetable[msb][i] = NULL;
@@ -99,13 +102,15 @@ int vm_init_third_level(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
 
     pagetable[msb][ssb] = kmalloc(sizeof(paddr_t) * PT_LVL3_SIZE);
     
-    if (pagetable[msb][ssb] == 0)
+    if (pagetable[msb][ssb] == 0) {
+        kfree(pagetable[msb][ssb]);
         return ENOMEM; /* out of memory */
-
-    for (int i = 0; i < PT_LVL3_SIZE; i++) {
-        /* zero-fill */
-        pagetable[msb][ssb][i] = 0;
     }
+    bzero(pagetable[msb][ssb], PT_LVL3_SIZE * sizeof(paddr_t));
+    // for (int i = 0; i < PT_LVL3_SIZE; i++) {
+    //     /* zero-fill */
+    //     pagetable[msb][ssb][i] = 0;
+    // }
 
     return 0;
 }
@@ -123,10 +128,12 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
     
     /* allocate a kernel heap page */
     vaddr_t kpage = alloc_kpages(1);
-
-    if (kpage == 0)
+    bzero((void *)kpage, PAGE_SIZE);
+    
+    if (kpage == 0) {
         return ENOMEM; /* out of memory */
-
+    }
+    
     /* convert to physical address to use as frame to back virtual page */
     paddr_t frame = KVADDR_TO_PADDR(kpage);
 
@@ -141,6 +148,8 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
 }
 
 int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
+
+    panic("at vm_copyPTE");
     uint32_t dirty = 0;
 
     // Loop through 1st level entries
@@ -185,10 +194,14 @@ int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
 
 int vm_freePT(paddr_t ***pagetable) {
     
+    if (pagetable == NULL)
+        return 0;
+        
     /* loop through first level */
-    for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
 
-        if (pagetable[msb] == NULL)
+    for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
+        
+        if (pagetable[msb] == NULL) 
             break;
         
         /* loop through second level */
@@ -205,8 +218,8 @@ int vm_freePT(paddr_t ***pagetable) {
 
                     paddr_t paddr = pagetable[msb][ssb][lsb] & PAGE_FRAME;
                     vaddr_t kpage = PADDR_TO_KVADDR(paddr);
-                    free_kpages(kpage);
                     pagetable[msb][ssb][lsb] = 0;
+                    free_kpages(kpage);
 
                 }
             }
@@ -226,13 +239,15 @@ void vm_bootstrap(void)
      * You may or may not need to add anything here depending what's
      * provided or required by the assignment spec.
      */
+
 }
 
 int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* Given a virtual address, find physical address and put inside TLB */
-    if (curproc == NULL) 
+    if (curproc == NULL) {
         return EFAULT;
+    }
     
     if (faultaddress == 0) 
         return EFAULT;
@@ -253,23 +268,26 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         uint32_t entry_lo = (pte & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
 
         tlb_random(entry_hi, entry_lo);
-
         splx(spl);
 
     }
 
     /* look up region */
     region *faultregion = lookup_region(curproc->p_addrspace, faultaddress);
-    /* check valid region */
-    if (faultregion == NULL)
-        return EFAULT;
 
+    /* check valid region */
+    if (faultregion == NULL) {
+        return EFAULT;
+    }
     /* not writable */
     if ((faulttype == VM_FAULT_WRITE) && ((faultregion->flags & PF_W) == 0))
         return EFAULT;
 
     /* Allocate frame, zerofill, insert PTE */
 
+    if (curproc->p_addrspace == NULL) {
+        return EFAULT;
+    }
     paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
 
     int ret = vm_addPTE(pagetable, faultaddress);

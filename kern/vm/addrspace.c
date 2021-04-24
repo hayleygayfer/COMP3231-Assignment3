@@ -58,26 +58,27 @@ as_create(void)
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
-	
+
 	if (as == NULL) {
-		return NULL;
-	}
-
-	// set stack to USERSTACK
-	as->as_stack = USERSTACK;
-	// No regions initially
-	as->as_regions = NULL;
-
-	as->as_pagetable = (paddr_t ***)alloc_kpages(1);
-	// check if not enough memory
-	if (as->as_pagetable == NULL) {
 		kfree(as);
 		return NULL;
 	}
 
+	// set stack to USERSTACK
+	// as->as_stack = USERSTACK;
+	// No regions initially
+	as->as_regions = NULL;
+	as->as_pagetable = NULL;
+	// (paddr_t ***)alloc_kpages(1);
+	// check if not enough memory
+	// if (as->as_pagetable == NULL) {
+	// 	kfree(as);
+	// 	return NULL;
+	// }
+
 	// all pagetable entries set to 0 at start (I think this is correct)
-	for (int i = 0; i < PT_LVL1_SIZE; i++) 
-		as->as_pagetable[i] = 0;
+	// for (int i = 0; i < PT_LVL1_SIZE; i++) 
+	// 	as->as_pagetable[i] = 0;
 	
 	/* Initialise 3 Level Page Table
 	 * 1st level - 2^8 = 256 entries
@@ -98,14 +99,13 @@ int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
 	struct addrspace *newas;
-
 	newas = as_create();
 	if (newas == NULL) {
 		return ENOMEM;
 	}
 
 	// initialise fields
-	newas->as_stack = old->as_stack;
+	// newas->as_stack = old->as_stack;
 	newas->as_regions = NULL;
 
 	// copy over the regions
@@ -118,6 +118,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		// check if no memory
 		if (temp == NULL) {
 			as_destroy(newas);
+			kfree(temp);
 			return ENOMEM;
 		}
 
@@ -154,6 +155,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
+
 	if (as == NULL) 
 		return;
 	
@@ -183,6 +185,7 @@ as_destroy(struct addrspace *as)
 void
 as_activate(void)
 {
+
 	/* copied from dumbvm */
 
 	int i, spl;
@@ -211,6 +214,7 @@ as_activate(void)
 void
 as_deactivate(void)
 {
+
 	/*
 	 * Write this. For many designs it won't need to actually do
 	 * anything. See proc.c for an explanation of why it (might)
@@ -233,6 +237,7 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
+
 	// Error checking: Bad memory reference
 	if (as == NULL) {
 		return EFAULT;
@@ -240,9 +245,9 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		
 	// Not enough spare memory on stack
 	// changed this to > ...TODO 
-	if (vaddr + memsize > as->as_stack) {
-		return ENOMEM;
-	}
+	// if (vaddr + memsize > as->as_stack) {
+	// 	return ENOMEM;
+	// }
 
 	// page alignment from dumbvm.c
 	/* ALIGN REGION */
@@ -256,12 +261,15 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	region *new_regions = kmalloc(sizeof(region));
 	
 	// out of memory error
-	if (new_regions == NULL) 
+	if (new_regions == NULL) {
+		kfree(new_regions);
 		return ENOMEM;
+	}
 
 	new_regions->as_vaddr = vaddr;
 	new_regions->size = memsize;
 	new_regions->flags = 0;
+	new_regions->next = NULL;
 
 	// Set flags according to readable, writeable and executable
 	if (readable) 
@@ -285,9 +293,10 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	}
 
 	/* otherwise, loop through the linked list */
-	while (curr != NULL && curr->next != NULL)
+	while (curr != NULL && curr->next != NULL) {
 		curr = curr->next;
-	
+	}
+
 	curr->next = new_regions;
 
 	return 0;
@@ -296,6 +305,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 int
 as_prepare_load(struct addrspace *as)
 {
+
 	//Error checking: bad memory reference
 	if (as == NULL)
 		return EFAULT;
@@ -316,6 +326,7 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
+
 	// Error checking: bad memory reference 
 	if (as == NULL) 
 		return EFAULT;
@@ -348,8 +359,8 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
+
 	// (void)as;
-	
 	as_define_region(as, USERSTACK - STACK_MEMSIZE, STACK_MEMSIZE, 1, 1, 0);
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
@@ -361,15 +372,18 @@ region *lookup_region(struct addrspace *as, vaddr_t faultaddress) {
 
     /* return region if found and NULL if not found */
 
-    if (as == NULL) 
-        return NULL;
+    if (as == NULL) {
+	    return NULL;
+	}
 
     region *curr = as->as_regions;
 
+	int i =0;
     while (curr != NULL) {
-        if (curr-> as_vaddr == faultaddress) 
-            return curr;
-
+        if (curr->as_vaddr == faultaddress) {
+		    return curr;
+		}
+		i++;
         curr = curr->next;
     }
 

@@ -87,24 +87,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
 
-/* TLB shootdown handlingpaddr_t vm_lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
-
-    paddr_t ***pagetable = as->as_pagetable;
-
-    uint32_t msb = get_msb (faultaddress);
-    uint32_t ssb = get_ssb (faultaddress);
-    uint32_t lsb = get_lsb (faultaddress);
-
-    if (pagetable[msb] == 0)
-        return 0;
-
-    paddr_t page_table_entry = pagetable[msb][ssb][lsb];
-
-    if (page_table_entry)
-        return page_table_entry;
-
-    return 0;
-} called from interprocessor_interrupt */
+/* TLB shootdown handlingpaddr_t called from interprocessor_interrupt */
 void vm_tlbshootdown(const struct tlbshootdown *);
 
 
