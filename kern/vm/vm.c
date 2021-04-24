@@ -6,10 +6,36 @@
 #include <vm.h>
 #include <machine/tlb.h>
 
+#include <proc.h>
+#include <spl.h>
+#include <elf.h>
+#include <current.h>
+
+/* Helper functions */
+uint32_t get_msb (uint32_t addr) {
+    /* get most significant 8 bits */
+    return addr >> 24;
+}
+
+uint32_t get_ssb (uint32_t addr) {
+    /* get next 6 bits */
+    uint32_t mask = 0x3f;
+    return (addr >> 14) & mask;
+}
+
+uint32_t get_lsb (uint32_t addr) {
+    /* get last 6 bits */
+    uint32_t mask = 0x3f;
+    return (addr & mask);
+}
+
 /* Place your page table functions here */
 
-int vm_initPT(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
-    
+int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
+
+    uint32_t msb = get_msb (faultaddress);
+    uint32_t ssb = get_ssb (faultaddress);
+
     /* 1st level of the page table is indexed by 8 most significant bits */
     pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);
 
@@ -46,15 +72,19 @@ int vm_initPT(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
     return 0;
 }
 
-int vm_addPTE(paddr_t ***pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb) {
+int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
+
+    uint32_t msb = get_msb (faultaddress);
+    uint32_t ssb = get_ssb (faultaddress);
+    uint32_t lsb = get_lsb (faultaddress);
 
     /* ADD PAGE TABLE ENTRY */
 
     if (pagetable[msb] == NULL)
-        vm_initPT(pagetable, msb, ssb);
+        vm_initPT(pagetable, faultaddress);
 
     /* allocate a kernel heap page */
-    vaddr_t kpage = alloc_kpages(1); 
+    vaddr_t kpage = alloc_kpages(1);
 
     if (kpage == 0)
         return ENOMEM; /* out of memory */
@@ -78,14 +108,19 @@ int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
     return 0;
 }
 
-
 int vm_freePT(paddr_t ***pagetable) {
     
     /* loop through first level */
     for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
+
+        if (pagetable[msb] == NULL)
+            break;
         
         /* loop through second level */
         for (int ssb = 0; ssb < PT_LVL2_SIZE; ssb++) {
+
+            if (pagetable[msb][ssb] == NULL)
+                break;
 
             /* loop through third level */
             for (int lsb = 0; lsb < PT_LVL3_SIZE; lsb++) {
@@ -114,16 +149,55 @@ void vm_bootstrap(void)
      */
 }
 
-int
-vm_fault(int faulttype, vaddr_t faultaddress)
-{
-    (void) faulttype;
-    (void) faultaddress;
+int vm_fault(int faulttype, vaddr_t faultaddress) {
 
-    panic("vm_fault hasn't been written yet\n");
+    /* Given a virtual address, find physical address and put inside TLB */
 
-    return EFAULT;
+    /* write to a read only page was attempted */
+    if (faulttype == VM_FAULT_READONLY)
+        return EFAULT;
+    
+    /* lookup page table for page table entry */
+    paddr_t pte = lookupPTE(curproc->p_addrspace, faultaddress);
+
+    /* check valid transatlion */
+    if (pte != 0 && (pte & TLBLO_VALID)) {
+        /* load TLB */
+        int spl = splhigh();
+
+        uint32_t entry_hi = faultaddress;
+        uint32_t entry_lo = (pte & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
+
+        tlb_random(entry_hi, entry_lo);
+
+        splx(spl);
+
+    }
+
+    /* look up region */
+    region *faultregion = lookup_region(curproc->p_addrspace, faultaddress);
+
+    /* check valid region */
+    if (faultregion == NULL)
+        return EFAULT;
+    
+    /* not writable */
+    if ((faulttype == VM_FAULT_WRITE) && ((faultregion->flags & PF_W) == 0))
+        return EFAULT;
+
+    /* Allocate frame, zerofill, insert PTE */
+
+    paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
+
+    int ret = vm_addPTE(pagetable, faultaddress);
+
+    if (ret)
+        return ret;  
+
+    return 0;
 }
+
+
 
 /*
  * SMP-specific functions.  Unused in our UNSW configuration.

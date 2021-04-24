@@ -73,7 +73,8 @@ as_create(void)
 	}
 
 	// all pagetable entries set to 0 at start (I think this is correct)
-	for (int i = 0; i < PT_LVL1_SIZE; i++) as->as_pagetable[i] = 0;
+	for (int i = 0; i < PT_LVL1_SIZE; i++) 
+		as->as_pagetable[i] = 0;
 	
 	/* Initialise 3 Level Page Table
 	 * 1st level - 2^8 = 256 entries
@@ -107,6 +108,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	// copy over the regions
 	region *old_regions; // old regions
 	region *new_regions = NULL; // new regions
+
 	// loop through old regions
 	for (old_regions = old->as_regions; old_regions != NULL; old_regions = old_regions->next) {
 		region *temp = kmalloc(sizeof(region));
@@ -149,12 +151,15 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	if (as == NULL) return;
+	if (as == NULL) 
+		return;
+	
 	/* clean up page table
 	 * 1st level - 2^8 = 256 entries
 	 * 2nd level - 2^6 = 64 entries 
 	 * 3rd level - 2^6 = 64 entries
 	 */
+	
 	// freeing pagetable
 	vm_freePT(as->as_pagetable);
 
@@ -162,6 +167,7 @@ as_destroy(struct addrspace *as)
 
 	/* clean up list of region structs */
 	region *curr = as->as_regions;
+
 	while (curr != NULL) {
 		region *to_free = curr;
 		curr = curr->next;
@@ -225,33 +231,58 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
 	// Error checking: Bad memory reference
-	if (as == NULL) return EFAULT;
+	if (as == NULL) 
+		return EFAULT;
+	
 	// Not enough spare memory on stack
-	if (vaddr + memsize >= as->as_stack) return ENOMEM;
+	if (vaddr + memsize >= as->as_stack)
+		return ENOMEM;
 
 	// page alignment from dumbvm.c
 	/* ALIGN REGION */
 	// Base
 	memsize += vaddr & ~(vaddr_t)PAGE_FRAME;
 	vaddr &= PAGE_FRAME;
+	
 	// Length
 	memsize = (memsize + PAGE_SIZE - 1) & PAGE_FRAME;
 
 	region *new_regions = kmalloc(sizeof(region));
+	
 	// out of memory error
-	if (new_regions == NULL) return ENOMEM;
+	if (new_regions == NULL) 
+		return ENOMEM;
 
 	new_regions->as_vaddr = vaddr;
 	new_regions->size = memsize;
 	new_regions->flags = 0;
 
 	// Set flags according to readable, writeable and executable
-	if (readable) new_regions->flags |= PF_R;
-	if (writeable) new_regions->flags |= PF_W;
-	if (executable) new_regions->flags |= PF_X;
-	new_regions -> o_flags = new_regions -> flags;
+	if (readable) 
+		new_regions->flags |= PF_R;
 
-	new_regions->next = as->as_regions;
+	if (writeable)
+		new_regions->flags |= PF_W;
+	
+	if (executable) 
+		new_regions->flags |= PF_X;
+	
+	new_regions->o_flags = new_regions->flags;
+
+	/* add region to end of linked list */
+	struct as_region *curr = as->as_regions;
+
+	/* head of the list */
+	if (curr == NULL) {
+		as->as_regions = new_regions;
+		return 0;
+	}
+
+	/* otherwise, loop through the linked list */
+	while (curr != NULL && curr->next != NULL)
+		curr = curr->next;
+	
+	curr->next = new_regions;
 
 	return 0;
 }
@@ -260,12 +291,14 @@ int
 as_prepare_load(struct addrspace *as)
 {
 	//Error checking: bad memory reference
-	if (as == NULL) return EFAULT;
+	if (as == NULL)
+		return EFAULT;
 
 	region *old_regions = as->as_regions;
+
 	// loop through and set all readonly regions to readwrite for prepare load
 	while (old_regions != NULL) {
-		if((old_regions->flags & PF_W) != PF_W) {
+		if ((old_regions->flags & PF_W) != PF_W) {
 			old_regions->flags |= PF_W;
 		}
 		old_regions = old_regions->next;
@@ -283,7 +316,9 @@ as_complete_load(struct addrspace *as)
 	region *old_regions = as->as_regions;
 	while (old_regions != NULL) {
 		// check if flags have been modified in prepare_load
-		if (old_regions->flags == old_regions->o_flags) old_regions = old_regions->next;
+		if (old_regions->flags == old_regions->o_flags)
+			old_regions = old_regions->next;
+		
 		else {
 			// set flags back to original flags
 			old_regions->flags = old_regions->o_flags;
@@ -314,3 +349,42 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	return 0;
 }
 
+region *lookup_region(struct addrspace *as, vaddr_t faultaddress) {
+
+    /* return region if found and NULL if not found */
+
+    if (as == NULL) 
+        return NULL;
+
+    region *curr = as->as_regions;
+
+    while (curr != NULL) {
+        if (curr-> as_vaddr == faultaddress) 
+            return curr;
+
+        curr = curr->next;
+    }
+
+    return NULL;
+}
+
+paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
+
+	if (as == NULL)
+		return 0;
+		
+    paddr_t ***pagetable = as->as_pagetable;
+
+    uint32_t msb = get_msb (faultaddress);
+    uint32_t ssb = get_ssb (faultaddress);
+    uint32_t lsb = get_lsb (faultaddress);
+
+	/* invalid translation */
+    if (pagetable == NULL || pagetable[msb] == NULL || pagetable[msb][ssb] == NULL)
+		return 0;
+
+	/* page table entry exists in page table */
+    paddr_t page_table_entry = pagetable[msb][ssb][lsb];
+
+	return page_table_entry;
+}

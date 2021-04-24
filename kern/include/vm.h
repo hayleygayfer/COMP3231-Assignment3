@@ -49,13 +49,24 @@
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
-/* PTE functions */
+/*** Helper functions ***/
+
+/* get most significant 8 bits */
+uint32_t get_msb (uint32_t addr);
+
+/* get next 6 bits */
+uint32_t get_ssb (uint32_t addr);
+
+/* get last 6 bits */
+uint32_t get_lsb (uint32_t addr);
+
+/*** PTE functions ***/
 
 /* initialise page table and zero-fill */
-int vm_initPT(paddr_t ***pagetable, uint32_t msb, uint32_t ssb);
+int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress);
 
 /* add page table entry to page table */
-int vm_addPTE(paddr_t ***pagetable, uint32_t msb, uint32_t ssb, uint32_t lsb);
+int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress);
 
 /* copy page table into new address */
 int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt);
@@ -73,7 +84,24 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
 
-/* TLB shootdown handling called from interprocessor_interrupt */
+/* TLB shootdown handlingpaddr_t vm_lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
+
+    paddr_t ***pagetable = as->as_pagetable;
+
+    uint32_t msb = get_msb (faultaddress);
+    uint32_t ssb = get_ssb (faultaddress);
+    uint32_t lsb = get_lsb (faultaddress);
+
+    if (pagetable[msb] == 0)
+        return 0;
+
+    paddr_t page_table_entry = pagetable[msb][ssb][lsb];
+
+    if (page_table_entry)
+        return page_table_entry;
+
+    return 0;
+} called from interprocessor_interrupt */
 void vm_tlbshootdown(const struct tlbshootdown *);
 
 

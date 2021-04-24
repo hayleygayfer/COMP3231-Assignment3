@@ -133,6 +133,11 @@ int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
+/* check if region in an addrspace. return region if found and NULL if not found */
+region *lookup_region(struct addrspace *as, vaddr_t faultaddress);
+
+/* lookup pagetable for page table entry */
+paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress);
 
 /*
  * Functions in loadelf.c
