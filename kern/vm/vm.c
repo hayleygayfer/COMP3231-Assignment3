@@ -35,8 +35,38 @@ int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
 
     uint32_t msb = get_msb (faultaddress);
     uint32_t ssb = get_ssb (faultaddress);
-
+    
     /* 1st level of the page table is indexed by 8 most significant bits */
+    if (pagetable == NULL) {
+        int ret1 = vm_init_first_level(pagetable);
+
+        if (ret1)
+            return ret1;
+    
+    }
+
+    /* 2nd level of the page table indexed by 6 second-most significant bits */
+    if (pagetable[msb] == NULL) {
+        int ret2 = vm_init_second_level(pagetable, msb);
+
+        if (ret2)
+            return ret2;
+    }
+
+    /* 3rd level of the page table indexed by 6 second-most significant bits */
+    if (pagetable[msb][ssb] == NULL) {
+        int ret3 = vm_init_third_level(pagetable, msb, ssb);
+
+        if (ret3)
+            return ret3;
+
+    }
+
+    return 0;
+}
+
+int vm_init_first_level(paddr_t ***pagetable) {
+    
     pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);
 
     if (pagetable == NULL)
@@ -47,7 +77,11 @@ int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
         pagetable[i] = NULL;
     }
 
-    /* 2nd level of the page table indexed by 6 second-most significant bits */
+    return 0;
+}
+
+int vm_init_second_level(paddr_t ***pagetable, uint32_t msb) {
+
     pagetable[msb] = kmalloc(sizeof(paddr_t *) * PT_LVL2_SIZE);
 
     if (pagetable[msb] == NULL)
@@ -58,7 +92,11 @@ int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
         pagetable[msb][i] = NULL;
     }
 
-    /* 3rd level of the page table indexed by 6 second-most significant bits */
+    return 0;
+}
+
+int vm_init_third_level(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
+
     pagetable[msb][ssb] = kmalloc(sizeof(paddr_t) * PT_LVL3_SIZE);
     
     if (pagetable[msb][ssb] == 0)
@@ -80,9 +118,9 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
 
     /* ADD PAGE TABLE ENTRY */
 
-    if (pagetable[msb] == NULL)
+    if (pagetable == NULL || pagetable[msb] == NULL || pagetable[msb][ssb] == NULL)
         vm_initPT(pagetable, faultaddress);
-
+    
     /* allocate a kernel heap page */
     vaddr_t kpage = alloc_kpages(1);
 
@@ -96,7 +134,7 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
      * valid bit - valid mapping for the page (present/absent)
      * dirty bit - write privilege bit; indicates modified in memory 
      */
-    
+  
     pagetable[msb][ssb][lsb] = (frame & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
 
     return 0;
@@ -234,6 +272,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
     paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
 
     int ret = vm_addPTE(pagetable, faultaddress);
+
 
     if (ret)
         return ret;  
