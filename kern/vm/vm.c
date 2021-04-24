@@ -234,8 +234,8 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
     if (curproc == NULL) 
         return EFAULT;
     
-    // if (faultaddress == NULL) 
-    //     return EFAULT;
+    if (faultaddress == 0) 
+        return EFAULT;
 
     /* write to a read only page was attempted */
     if (faulttype == VM_FAULT_READONLY)
