@@ -103,8 +103,45 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
 }
 
 int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
-    (void)old_pt;
-    (void)new_pt;
+    uint32_t dirty = 0;
+
+    // Loop through 1st level entries
+    for (int i = 0; i < PT_LVL1_SIZE; i++) {
+        // check if populated
+        if (old_pt[i] == NULL) continue;
+
+        /* 2nd level of the page table indexed by 6 second-most significant bits */
+        new_pt[i] = kmalloc(sizeof(paddr_t) * PT_LVL2_SIZE);
+
+        for (int j = 0; j < PT_LVL2_SIZE; j++) {
+
+            if (old_pt[i][j] == NULL) continue;
+
+            /* 3rd level of the page table indexed by 6 second-most significant bits */
+            new_pt[i][j] = kmalloc(sizeof(paddr_t) * PT_LVL3_SIZE);
+
+            for (int k = 0; k < PT_LVL3_SIZE; k++) {
+                if (old_pt[i][j][k] == 0) {
+                    // zero fill 3rd level index
+                    new_pt[i][j][k] = 0;
+                } else {
+                    // If not zero filled (has content set)
+                    vaddr_t n_frame = alloc_kpages(1);
+                    // check if no available memory
+                    if (n_frame == 0) return ENOMEM;
+                    bzero((void *)n_frame, PAGE_SIZE);
+                    // copy bytes
+                    if (memmove((void *)n_frame, (const void *)PADDR_TO_KVADDR(old_pt[i][j][k] & PAGE_FRAME), PAGE_SIZE) == NULL) { 
+                        // if memmove FAILS
+                        vm_freePT(new_pt);
+                        return ENOMEM; // Out of memory
+                    }
+                    dirty = old_pt[i][j][k] & TLBLO_DIRTY;
+                    new_pt[i][j][k] = (KVADDR_TO_PADDR(n_frame) & PAGE_FRAME) | dirty | TLBLO_VALID;
+                }
+            }
+        }
+    }
     return 0;
 }
 
