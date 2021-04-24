@@ -342,8 +342,9 @@ int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
 	(void)as;
-
+	// as_define_region(as, USERSTACK, , 1, 1, 0);
 	/* Initial user-level stack pointer */
+
 	*stackptr = USERSTACK;
 
 	return 0;
@@ -372,7 +373,7 @@ paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
 
 	if (as == NULL)
 		return 0;
-		
+
     paddr_t ***pagetable = as->as_pagetable;
 
     uint32_t msb = get_msb (faultaddress);

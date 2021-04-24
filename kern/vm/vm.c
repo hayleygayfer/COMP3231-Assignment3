@@ -227,8 +227,11 @@ void vm_bootstrap(void)
 int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* Given a virtual address, find physical address and put inside TLB */
-    if (curproc == NULL) return EFAULT;
-    if (faultaddress == NULL) return EFAULT;
+    if (curproc == NULL) 
+        return EFAULT;
+    
+    // if (faultaddress == NULL) 
+    //     return EFAULT;
 
     /* write to a read only page was attempted */
     if (faulttype == VM_FAULT_READONLY)
@@ -258,11 +261,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
     if (faultregion == NULL)
         return EFAULT;
 
-    /* if readonly */
-    if (faulttype == VM_FAULT_READONLY) return EFAULT;
-    /* check if valid flags */
-    if (faulttyple != VM_FAULT_WRITE && faulttype != VM_FAULT_READ);
-    
     /* not writable */
     if ((faulttype == VM_FAULT_WRITE) && ((faultregion->flags & PF_W) == 0))
         return EFAULT;
@@ -272,7 +270,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
     paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
 
     int ret = vm_addPTE(pagetable, faultaddress);
-
 
     if (ret)
         return ret;  
