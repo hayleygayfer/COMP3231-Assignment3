@@ -19,7 +19,6 @@ uint32_t get_msb (uint32_t addr) {
 
 uint32_t get_ssb (uint32_t addr) {
     /* get next 6 bits */
-    // uint32_t mask = 0x3f;
     return addr << 8 >> 26;
 }
 
@@ -153,7 +152,7 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
 
 int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
 
-    panic("at vm_copyPTE");
+    panic("cop");
     uint32_t dirty = 0;
 
     // Loop through 1st level entries
@@ -203,7 +202,6 @@ int vm_freePT(paddr_t ***pagetable) {
     }
         
     /* loop through first level */
-
     for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
         
         if (pagetable[msb] == NULL) {
@@ -223,7 +221,7 @@ int vm_freePT(paddr_t ***pagetable) {
                 if (pagetable[msb][ssb][lsb]) {
                     paddr_t paddr = pagetable[msb][ssb][lsb] & PAGE_FRAME;
                     vaddr_t kpage = PADDR_TO_KVADDR(paddr);
-                    pagetable[msb][ssb][lsb] = 0;
+                    // pagetable[msb][ssb][lsb] = 0;
                     free_kpages(kpage);
                 }
             }
@@ -232,7 +230,7 @@ int vm_freePT(paddr_t ***pagetable) {
         }
         kfree(pagetable[msb]);
     }    
-
+    
     return 0;
 }
 
@@ -250,7 +248,6 @@ void vm_bootstrap(void)
 int vm_fault(int faulttype, vaddr_t faultaddress) {
     /* Given a virtual address, find physical address and put inside TLB */
     if (curproc == NULL) {
-        panic("NULLcurproc");
         return EFAULT;
     }
     
@@ -264,7 +261,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* write to a read only page was attempted */
     if (faulttype == VM_FAULT_READONLY) {
-        panic("readonly");
         return EFAULT;
     }
     
@@ -298,9 +294,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* not writable */
     if ((faulttype == VM_FAULT_WRITE) && ((faultregion->flags & PF_W) == 0)) {
-        panic("here1");
         return EFAULT;
-        
     }
 
     /* Allocate frame, zerofill, insert PTE */
@@ -332,7 +326,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
         return 0;
     }
-    
+
     return 0;
 }
 

@@ -70,10 +70,10 @@ as_create(void)
 	as->as_regions = NULL;
 	as->as_pagetable = (paddr_t ***)alloc_kpages(1);
 	// check if not enough memory
-	// if (as->as_pagetable == NULL) {
-	// 	kfree(as);
-	// 	return NULL;
-	// }
+	if (as->as_pagetable == NULL) {
+		kfree(as);
+		return NULL;
+	}
 
 	// all pagetable entries set to 0 at start (I think this is correct)
 	// for (int i = 0; i < PT_LVL1_SIZE; i++) 
@@ -97,54 +97,75 @@ as_create(void)
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
-	struct addrspace *newas;
-	newas = as_create();
+	/* create a new address space to populate */
+	struct addrspace *newas = as_create();
+
 	if (newas == NULL) {
 		return ENOMEM;
 	}
 
-	// initialise fields
-	// newas->as_stack = old->as_stack;
+	/* initialise fields */
 	newas->as_regions = NULL;
+	newas->as_pagetable == NULL;
 
-	// copy over the regions
-	region *old_regions; // old regions
-	region *new_regions = NULL; // new regions
+	/* copying over the regions */
 
-	// loop through old regions
-	for (old_regions = old->as_regions; old_regions != NULL; old_regions = old_regions->next) {
-		region *temp = kmalloc(sizeof(region));
+	region *old_regions = old->as_regions;
+
+	while (old_regions != NULL) {
+
+		region *new_region_node = kmalloc(sizeof(region));
+
 		// check if no memory
-		if (temp == NULL) {
+		if (new_region_node == NULL) {
 			as_destroy(newas);
-			kfree(temp);
+			kfree(new_region_node);
 			return ENOMEM;
 		}
 
-		// copy old region to temp
-		temp->as_vaddr = old_regions->as_vaddr;
-		temp->size = old_regions->size;
-		temp->flags = old_regions->flags;
-		temp->o_flags = old_regions->o_flags;
-		temp->next = NULL;
+		// copy old region to new_region_node
+		new_region_node->as_vaddr = old_regions->as_vaddr;
+		new_region_node->size = old_regions->size;
+		new_region_node->flags = old_regions->flags;
+		new_region_node->o_flags = old_regions->o_flags;
+		new_region_node->next = NULL;
 
 		// append to the end of the new regions list
+
+		regions *curr = newas->as_regions;
+
+		if (new_regions == NULL) {
+			// head of the list
+			newas->as_regions = temp;
+		}
+
+
+		while (new_regions != NULL && new_regions->next != NULL)
+			new_regions = new_regions->next;
+
+
 		if (new_regions != NULL) {
 			// new_regions is not empty
 			new_regions->next = temp;
 		} else {
 			// new_regions is empty
-			newas->as_regions = temp;
 			new_regions = temp;
 		}
+
+
+		/* loop through old_regions */
+		old_regions = old_regions->next;
 	}
 
-	int res = vm_copyPTE(old->as_pagetable, newas->as_pagetable);
-	if (res != 0) {
+	/* copying over the page table */
+
+	int result = vm_copyPTE(old->as_pagetable, newas->as_pagetable);
+
+	if (result != 0) {
 		// unable to copy over pagetable
 		as_destroy(newas);
 		// return error code
-		return res;
+		return result;
 	}
 
 	*ret = newas;
@@ -407,7 +428,13 @@ paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
     uint32_t lsb = get_lsb(p_fault);
 
 	/* invalid translation */
-    if (pagetable == NULL || pagetable[msb] == NULL || pagetable[msb][ssb] == NULL)
+    if (pagetable == NULL)
+		return 0;
+
+	else if (pagetable[msb] == NULL)
+		return 0;
+	
+	else if (pagetable[msb][ssb] == NULL)
 		return 0;
 
 	/* page table entry exists in page table */
