@@ -406,11 +406,7 @@ int copy_region(region *old_region, region *new_region) {
 
 	region *current = old_region;  /* used to iterate over old_region list */
 	region *new_tail = NULL;	   /* last node of the new list */
-<<<<<<< HEAD
-
-=======
 	
->>>>>>> moved as_copy into functions
 	new_region = NULL;
 
 	/* no regions in old address space */
