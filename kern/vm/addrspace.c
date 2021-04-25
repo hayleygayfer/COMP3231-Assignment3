@@ -55,43 +55,27 @@
 struct addrspace *
 as_create(void)
 {
-	struct addrspace *as;
-
-	as = kmalloc(sizeof(struct addrspace));
+	struct addrspace *as = kmalloc(sizeof(struct addrspace));
 
 	if (as == NULL) {
 		kfree(as);
-		return NULL;
+		return NULL; /* ENOMEM */
 	}
 
-	// set stack to USERSTACK
+	/* no regions initially*/
 	as->as_stack = USERSTACK;
-	// No regions initially
 	as->as_regions = NULL;
+
+	/* Initialise 3 Level Page Table */ 
 	as->as_pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);	
 	
-	// (paddr_t ***)alloc_kpages(1);
-	// check if not enough memory
 	if (as->as_pagetable == NULL) {
 		kfree(as);
-		return NULL;
+		return NULL; /* ENOMEM */
 	}
 
-	// all pagetable entries set to 0 at start (I think this is correct)
 	for (int i = 0; i < PT_LVL1_SIZE; i++) 
 		as->as_pagetable[i] = 0;
-	
-	/* Initialise 3 Level Page Table
-	 * 1st level - 2^8 = 256 entries
-	 * 2nd level - 2^6 = 64 entries 
-	 * 3rd level - 2^6 = 64 entries
-	 * 
-	 * Lazy data structure, so the contents of the page table are
-	 * only allocated when they are needed.
-	 *
-	 * Newly allocated frames used to back pages should be zero-filled
-	 * prior to mapping 
-	 */	
 
 	return as;
 }
@@ -107,62 +91,39 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	}
 
 	/* initialise fields */
+	newas->as_stack = old->as_stack;
 	newas->as_regions = NULL;
+	newas->as_pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);	
 
-	/* copying over the regions */
-
-	region *old_regions = old->as_regions;
-
-	while (old_regions != NULL) {
-
-		region *new_region_node = kmalloc(sizeof(region));
-
-		// check if no memory
-		if (new_region_node == NULL) {
-			as_destroy(newas);
-			kfree(new_region_node);
-			return ENOMEM;
-		}
-
-		// copy old region to new_region_node
-		new_region_node->as_vaddr = old_regions->as_vaddr;
-		new_region_node->size = old_regions->size;
-		new_region_node->flags = old_regions->flags;
-		new_region_node->o_flags = old_regions->o_flags;
-		new_region_node->next = NULL;
-
-		// append to the end of the new regions list
-
-		region *curr = newas->as_regions;
-
-		if (curr == NULL) {
-			// head of the list
-			newas->as_regions = new_region_node;
-		}
-
-		while (curr != NULL && curr->next != NULL)
-			curr = curr->next;
-
-		curr->next = new_region_node;
-
-		/* loop through old_regions */
-		old_regions = old_regions->next;
+	if (newas->as_pagetable == NULL) {
+		as_destroy(newas);
+		return ENOMEM;
 	}
 
-	/* copying over the page table */
+	for (int i = 0; i < PT_LVL1_SIZE; i++) 
+		newas->as_pagetable[i] = 0;
 
-	int result = vm_copyPTE(old->as_pagetable, newas->as_pagetable);
+	/* create deep copy of regions */
+	int error = copy_region(old->as_regions, newas->as_regions);
 
-	if (result != 0) {
-		// unable to copy over pagetable
+	if (error) {
 		as_destroy(newas);
-		// return error code
-		return result;
+		return error;
+	}
+
+	/* copy over page table */
+	error = vm_copyPTE(old->as_pagetable, newas->as_pagetable);
+
+	if (error) {
+		as_destroy(newas);
+		return error;
 	}
 
 	*ret = newas;
+
 	return 0;
 }
+
 
 void
 as_destroy(struct addrspace *as)
@@ -381,9 +342,14 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	as_define_region(as, USERSTACK - STACK_MEMSIZE, STACK_MEMSIZE, 1, 1, 0);
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
+	as->as_stack = USERSTACK;
 
 	return 0;
 }
+
+////////////////////////////////////////////////////////////
+// 			HELPER FUNCTIONS
+////////////////////////////////////////////////////////////
 
 region *lookup_region(struct addrspace *as, vaddr_t faultaddress) {
 
@@ -434,4 +400,61 @@ paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
     paddr_t page_table_entry = pagetable[msb][ssb][lsb];
 
 	return page_table_entry;
+}
+
+int copy_region(region *old_region, region *new_region) {
+
+	region *current = old_region;  /* used to iterate over old_region list */
+	region *new_tail = NULL;	   /* last node of the new list */
+
+	new_region = NULL;
+
+	/* no regions in old address space */
+	if (current == NULL) {
+		return 0;
+	}
+
+	while (current != NULL) {
+
+		/* create a copy of the current node from old_region */
+		region *new_node = create_copy_node(current);
+
+		if (new_node == NULL) {
+			return ENOMEM;
+		}
+
+		if (current == NULL) {
+			/* set node to be the head of new_region list */ 
+			new_region = new_node;
+			new_tail = new_region;
+		} else {
+			/* add to the end of the list */
+			new_tail->next = new_node;
+			new_tail = new_tail->next;
+		}
+		
+		/* iterate over old_region list */
+		current = current->next;
+	}
+
+	return 0;
+}
+
+region *create_copy_node(region *node) {
+
+	region *new_node = kmalloc(sizeof(region));
+
+	if (new_node == NULL) {
+		kfree(new_node);
+		return NULL; /* ENOMEM */
+	}
+
+	/* copy fields of the struct over */
+	new_node->as_vaddr = node->as_vaddr;
+	new_node->size = node->size;
+	new_node->flags = node->flags;
+	new_node->o_flags = node->o_flags;
+	new_node->next = NULL;
+
+	return new_node;
 }

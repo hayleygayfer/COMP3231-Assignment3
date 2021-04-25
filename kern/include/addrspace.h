@@ -139,6 +139,12 @@ region *lookup_region(struct addrspace *as, vaddr_t faultaddress);
 /* lookup pagetable for page table entry */
 paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress);
 
+/* returns the head of the new region linked list, deepcopy of old region */
+int copy_region(region *old_region, region *new_region);
+
+/* returns a deep copy of a node */
+region *create_copy_node(region *old_region);
+
 /*
  * Functions in loadelf.c
  *    load_elf - load an ELF user program executable into the current
