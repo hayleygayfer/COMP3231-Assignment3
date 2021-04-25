@@ -134,24 +134,15 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 		regions *curr = newas->as_regions;
 
-		if (new_regions == NULL) {
+		if (curr == NULL) {
 			// head of the list
-			newas->as_regions = temp;
+			newas->as_regions = new_region_node;
 		}
 
+		while (curr != NULL && curr->next != NULL)
+			curr = curr->next;
 
-		while (new_regions != NULL && new_regions->next != NULL)
-			new_regions = new_regions->next;
-
-
-		if (new_regions != NULL) {
-			// new_regions is not empty
-			new_regions->next = temp;
-		} else {
-			// new_regions is empty
-			new_regions = temp;
-		}
-
+		curr->next = new_region_node;
 
 		/* loop through old_regions */
 		old_regions = old_regions->next;
