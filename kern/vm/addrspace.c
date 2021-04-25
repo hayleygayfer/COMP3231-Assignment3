@@ -395,14 +395,16 @@ region *lookup_region(struct addrspace *as, vaddr_t faultaddress) {
 
 paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
 
+	paddr_t p_fault = KVADDR_TO_PADDR(faultaddress);
+
 	if (as == NULL)
 		return 0;
 
     paddr_t ***pagetable = as->as_pagetable;
 
-    uint32_t msb = get_msb(faultaddress);
-    uint32_t ssb = get_ssb(faultaddress);
-    uint32_t lsb = get_lsb(faultaddress);
+    uint32_t msb = get_msb(p_fault);
+    uint32_t ssb = get_ssb(p_fault);
+    uint32_t lsb = get_lsb(p_fault);
 
 	/* invalid translation */
     if (pagetable == NULL || pagetable[msb] == NULL || pagetable[msb][ssb] == NULL)

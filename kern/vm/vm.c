@@ -19,23 +19,24 @@ uint32_t get_msb (uint32_t addr) {
 
 uint32_t get_ssb (uint32_t addr) {
     /* get next 6 bits */
-    uint32_t mask = 0x3f;
-    return (addr >> 14) & mask;
+    // uint32_t mask = 0x3f;
+    return addr << 8 >> 26;
 }
 
 uint32_t get_lsb (uint32_t addr) {
     /* get last 6 bits */
-    uint32_t mask = 0x3f;
-    return (addr & mask);
+    return addr << 14 >> 26;
 }
 
 /* Place your page table functions here */
 
 int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
- 
-    uint32_t msb = get_msb (faultaddress);
-    uint32_t ssb = get_ssb (faultaddress);
-    
+
+    paddr_t p_fault = KVADDR_TO_PADDR(faultaddress);
+
+    uint32_t msb = get_msb (p_fault);
+    uint32_t ssb = get_ssb (p_fault);
+
     /* 1st level of the page table is indexed by 8 most significant bits */
     if (pagetable == NULL) {
         int ret1 = vm_init_first_level(pagetable);
@@ -49,8 +50,9 @@ int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
     if (pagetable[msb] == NULL) {
         int ret2 = vm_init_second_level(pagetable, msb);
 
-        if (ret2)
+        if (ret2) {
             return ret2;
+        }
     }
 
     /* 3rd level of the page table indexed by 6 second-most significant bits */
@@ -107,19 +109,21 @@ int vm_init_third_level(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
         return ENOMEM; /* out of memory */
     }
     bzero(pagetable[msb][ssb], PT_LVL3_SIZE * sizeof(paddr_t));
-    for (int i = 0; i < PT_LVL3_SIZE; i++) {
-        /* zero-fill */
+    /* for (int i = 0; i < PT_LVL3_SIZE; i++) {
+        zero-fill
         pagetable[msb][ssb][i] = 0;
-    }
+    } */
 
     return 0;
 }
 
 int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
 
-    uint32_t msb = get_msb (faultaddress);
-    uint32_t ssb = get_ssb (faultaddress);
-    uint32_t lsb = get_lsb (faultaddress);
+    paddr_t p_fault = KVADDR_TO_PADDR(faultaddress);
+
+    uint32_t msb = get_msb (p_fault);
+    uint32_t ssb = get_ssb (p_fault);
+    uint32_t lsb = get_lsb (p_fault);
 
     /* ADD PAGE TABLE ENTRY */
 
@@ -228,6 +232,7 @@ int vm_freePT(paddr_t ***pagetable) {
         }
         kfree(pagetable[msb]);
     }    
+
     return 0;
 }
 
@@ -263,6 +268,8 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         return EFAULT;
     }
     
+    // faultaddress &= PAGE_FRAME;
+
     /* lookup page table for page table entry */
     paddr_t pte = lookupPTE(curproc->p_addrspace, faultaddress);
 
@@ -271,7 +278,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         /* load TLB */
         int spl = splhigh();
 
-        uint32_t entry_hi = faultaddress;
+        uint32_t entry_hi = faultaddress & TLBHI_VPAGE;
         uint32_t entry_lo = (pte & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
 
         tlb_random(entry_hi, entry_lo);
@@ -284,7 +291,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* check valid region */
     if (faultregion == NULL) {
-       panic("here %d %p", faultaddress, curproc->p_addrspace);
+       // panic("here %d %p", faultaddress, curproc->p_addrspace);
        return EFAULT;
     }
 
