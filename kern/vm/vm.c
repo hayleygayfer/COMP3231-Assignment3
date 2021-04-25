@@ -198,33 +198,33 @@ int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
 
 int vm_freePT(paddr_t ***pagetable) {
     
-    if (pagetable == NULL)
+    if (pagetable == NULL) {
         return 0;
+    }
         
     /* loop through first level */
 
     for (int msb = 0; msb < PT_LVL1_SIZE; msb++) {
         
-        if (pagetable[msb] == NULL) 
-            break;
+        if (pagetable[msb] == NULL) {
+            continue;
+        }
         
         /* loop through second level */
         for (int ssb = 0; ssb < PT_LVL2_SIZE; ssb++) {
 
-            if (pagetable[msb][ssb] == NULL)
-                break;
+            if (pagetable[msb][ssb] == NULL) {
+                continue;
+            }
 
             /* loop through third level */
             for (int lsb = 0; lsb < PT_LVL3_SIZE; lsb++) {
                 /* delete frame */
-
                 if (pagetable[msb][ssb][lsb]) {
-
                     paddr_t paddr = pagetable[msb][ssb][lsb] & PAGE_FRAME;
                     vaddr_t kpage = PADDR_TO_KVADDR(paddr);
                     pagetable[msb][ssb][lsb] = 0;
                     free_kpages(kpage);
-
                 }
             }
 
@@ -284,6 +284,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         tlb_random(entry_hi, entry_lo);
         splx(spl);
 
+        return 0;
     }
 
     /* look up region */
@@ -308,6 +309,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         panic("her3e");
         return EFAULT;
     }
+
     paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
     int ret = vm_addPTE(pagetable, faultaddress);
 
@@ -315,6 +317,22 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         panic("ret");
         return ret;  
     }
+
+    pte = lookupPTE(curproc->p_addrspace, faultaddress);
+
+    if (pte != 0 && (pte & TLBLO_VALID)) {
+        /* load TLB */
+        int spl = splhigh();
+
+        uint32_t entry_hi = faultaddress & TLBHI_VPAGE;
+        uint32_t entry_lo = (pte & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
+
+        tlb_random(entry_hi, entry_lo);
+        splx(spl);
+
+        return 0;
+    }
+    
     return 0;
 }
 
