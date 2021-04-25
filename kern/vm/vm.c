@@ -12,7 +12,7 @@
 #include <current.h>
 
 /////////////////////////////////////////////////////
-//          HELPER FUNCTIONS
+// HELPER FUNCTIONS FOR ADDING TO PAGE TABLE
 /////////////////////////////////////////////////////
 
 /* Helper functions */
@@ -80,6 +80,70 @@ int vm_init_third_level(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
     return 0;
 }
 
+
+/////////////////////////////////////////////////////
+// HELPER FUNCTIONS FOR COPYING PAGE TABLE
+/////////////////////////////////////////////////////
+
+int vm_copy_entry(paddr_t ***old_pt, paddr_t ***new_pt, int msb, int ssb, int lsb) {
+
+    vaddr_t kpage = alloc_kpages(1);
+
+    if (kpage == 0) {
+        free_kpages(kpage);
+        return ENOMEM;
+    }
+
+    // bzero((void *)kpage, PAGE_SIZE);
+    paddr_t old_frame = old_pt[msb][ssb][lsb] & PAGE_FRAME;
+    vaddr_t old_page = PADDR_TO_KVADDR(old_frame);
+
+    void *res = memmove((void *)kpage, (const void *)old_page, PAGE_SIZE);
+
+    if (res == NULL) {
+        vm_freePT(new_pt);
+        return ENOMEM;
+    } 
+    // TODO: dirty bit
+    
+    paddr_t new_frame = KVADDR_TO_PADDR(kpage);
+    new_pt[msb][ssb][lsb] = (new_frame & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
+
+    return 0;
+}
+
+int vm_init_copy_second_level(paddr_t ***new_pt, int msb) {
+
+    /* create second level of copy table */
+    new_pt[msb] = kmalloc(sizeof(paddr_t *) * PT_LVL2_SIZE);
+    if (new_pt[msb] == NULL) {
+        kfree(new_pt[msb]);
+        return ENOMEM; /* out of memory */
+    }
+
+    /* initialise second level of copy table */
+    bzero(new_pt[msb], PT_LVL2_SIZE * sizeof(paddr_t *));
+    for (int i = 0; i < PT_LVL2_SIZE; i++)
+        new_pt[msb][i] = NULL;
+
+    return 0;
+}
+
+int vm_init_copy_third_level( paddr_t ***new_pt, int msb, int ssb) {
+
+    /* create third level of the copy table */
+    new_pt[msb][ssb] = kmalloc(sizeof(paddr_t) * PT_LVL3_SIZE);
+    if (new_pt[msb][ssb] == NULL) {
+        kfree(new_pt[msb][ssb]);
+        return ENOMEM; /* out of memory */
+    }
+
+    /* initialise third level of copy table */
+    bzero(new_pt[msb][ssb], PT_LVL3_SIZE * sizeof(paddr_t));
+
+    return 0;
+}
+
 /////////////////////////////////////////////////////
 //         PAGE TABLE FUNCTIONS
 /////////////////////////////////////////////////////
@@ -137,9 +201,11 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
     vaddr_t kpage = alloc_kpages(1);
     // bzero((void *)kpage, PAGE_SIZE);
     
-    if (kpage == 0) 
+    if (kpage == 0) {
+        free_kpages(kpage);
         return ENOMEM; /* out of memory */
-    
+    }
+
     /* convert to physical address to use as frame to back virtual page */
     paddr_t frame = KVADDR_TO_PADDR(kpage);
 
@@ -154,51 +220,41 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
 
 int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt) {
 
-    uint32_t dirty = 0;
-
-    /* Loop through 1st level entries */
+    /* no page table to copy */
+    if (old_pt == NULL) {
+        new_pt = NULL;
+        return 0;
+    }
+    
+    /* loop through first level of the page table */
     for (int i = 0; i < PT_LVL1_SIZE; i++) {
+        
+        if (old_pt[i] == NULL)
+            continue;
 
-        /* check if populated */
-        if (old_pt[i] == NULL) continue;
+        /* create and initialise second level */
+        int err = vm_init_copy_second_level(new_pt, i);
+        if (err)
+            return err;
 
-        /* 2nd level of the page table indexed by 6 second-most significant bits */
-        new_pt[i] = kmalloc(sizeof(paddr_t) * PT_LVL2_SIZE);
-
+        /* loop through second level of the page table */
         for (int j = 0; j < PT_LVL2_SIZE; j++) {
+            
+            if (old_pt[i][j] == NULL)
+                continue;
 
-            if (old_pt[i][j] == NULL) continue;
+            int ret = vm_init_copy_third_level(new_pt, i, j);
+            if (ret)
+                return ret;
 
-            /* 3rd level of the page table indexed by 6 second-most significant bits */
-            new_pt[i][j] = kmalloc(sizeof(paddr_t) * PT_LVL3_SIZE);
-
+            /* loop through third level of the page table */
             for (int k = 0; k < PT_LVL3_SIZE; k++) {
-
-                if (old_pt[i][j][k] == 0) {
-                    // zero fill 3rd level index
-                    new_pt[i][j][k] = 0;
-
-                } else {
-                    // If not zero filled (has content set)
-                    vaddr_t n_frame = alloc_kpages(1);
-
-                    // check if no available memory
-                    if (n_frame == 0) { 
-                        free_kpages(n_frame);
-                        return ENOMEM;   
-                    }
-                    
-                    bzero((void *)n_frame, PAGE_SIZE);
-
-                    // copy bytes
-                    if (memmove((void *)n_frame, (const void *)PADDR_TO_KVADDR(old_pt[i][j][k] & PAGE_FRAME), PAGE_SIZE) == NULL) { 
-                        // if memmove FAILS
-                        vm_freePT(new_pt);
-                        return ENOMEM; // Out of memory
-                    }
-
-                    dirty = old_pt[i][j][k] & TLBLO_DIRTY;
-                    new_pt[i][j][k] = (KVADDR_TO_PADDR(n_frame) & PAGE_FRAME) | dirty | TLBLO_VALID;
+                
+                /* if there's content in the page table, copy over */
+                if (old_pt[i][j][k]) {
+                    int res = vm_copy_entry(old_pt, new_pt, i, j, k);
+                    if (res)
+                        return res;
                 }
             }
         }

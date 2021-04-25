@@ -62,17 +62,18 @@ uint32_t get_lsb (uint32_t addr);
 
 /*** PTE functions ***/
 
-/* initialise page table and zero-fill */
+/* add page table entry to page table */
+int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress);
 int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress);
 int vm_init_first_level(paddr_t ***pagetable);
 int vm_init_second_level(paddr_t ***pagetable, uint32_t msb);
 int vm_init_third_level(paddr_t ***pagetable, uint32_t msb, uint32_t ssb);
 
-/* add page table entry to page table */
-int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress);
-
 /* copy page table into new address */
 int vm_copyPTE(paddr_t ***old_pt, paddr_t ***new_pt);
+int vm_init_copy_second_level(paddr_t ***new_pt, int msb);
+int vm_init_copy_third_level(paddr_t ***new_pt, int msb, int ssb);
+int vm_copy_entry(paddr_t ***old_pt, paddr_t ***new_pt, int msb, int ssb, int lsb);
 
 /* free page table */
 int vm_freePT(paddr_t ***pagetable);

@@ -93,15 +93,6 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	/* initialise fields */
 	newas->as_stack = old->as_stack;
 	newas->as_regions = NULL;
-	newas->as_pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);	
-
-	if (newas->as_pagetable == NULL) {
-		as_destroy(newas);
-		return ENOMEM;
-	}
-
-	for (int i = 0; i < PT_LVL1_SIZE; i++) 
-		newas->as_pagetable[i] = 0;
 
 	/* create deep copy of regions */
 	int error = copy_region(old->as_regions, newas->as_regions);
