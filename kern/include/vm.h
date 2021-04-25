@@ -39,9 +39,9 @@
 #include <machine/vm.h>
 
 /* page table level sizes */
-#define PT_LVL1_SIZE 256
-#define PT_LVL2_SIZE 64
-#define PT_LVL3_SIZE 64
+#define PT_LVL1_SIZE 256  // 2^8
+#define PT_LVL2_SIZE 64   // 2^6
+#define PT_LVL3_SIZE 64   // 2^6 
 
 /* Fault-type arguments to vm_fault() */
 

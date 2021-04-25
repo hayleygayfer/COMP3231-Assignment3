@@ -66,7 +66,7 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
-        // vaddr_t as_stack;
+        vaddr_t as_stack;
 
         /* 3 Level Page Table */
         paddr_t ***as_pagetable;

@@ -39,7 +39,7 @@
 #include <proc.h>
 #include <elf.h>
 
-#define STACK_PAGES		512
+#define STACK_PAGES		16
 #define STACK_MEMSIZE	STACK_PAGES * PAGE_SIZE
 
 /*
@@ -65,10 +65,12 @@ as_create(void)
 	}
 
 	// set stack to USERSTACK
-	// as->as_stack = USERSTACK;
+	as->as_stack = USERSTACK;
 	// No regions initially
 	as->as_regions = NULL;
-	as->as_pagetable = (paddr_t ***)alloc_kpages(1);
+	as->as_pagetable = kmalloc(sizeof(paddr_t **) * PT_LVL1_SIZE);	
+	
+	// (paddr_t ***)alloc_kpages(1);
 	// check if not enough memory
 	if (as->as_pagetable == NULL) {
 		kfree(as);
@@ -76,8 +78,8 @@ as_create(void)
 	}
 
 	// all pagetable entries set to 0 at start (I think this is correct)
-	// for (int i = 0; i < PT_LVL1_SIZE; i++) 
-	// 	as->as_pagetable[i] = 0;
+	for (int i = 0; i < PT_LVL1_SIZE; i++) 
+		as->as_pagetable[i] = 0;
 	
 	/* Initialise 3 Level Page Table
 	 * 1st level - 2^8 = 256 entries
@@ -176,7 +178,8 @@ as_destroy(struct addrspace *as)
 	 */
 	
 	// freeing pagetable
-	vm_freePT(as->as_pagetable);
+	if (as->as_pagetable != NULL)
+		vm_freePT(as->as_pagetable);
 
 	/* deallocate frames used */
 
@@ -256,9 +259,9 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		
 	// Not enough spare memory on stack
 	// changed this to > ...TODO 
-	// if (vaddr + memsize > as->as_stack) {
-	// 	return ENOMEM;
-	// }
+	if (vaddr + memsize > as->as_stack) {
+		return ENOMEM;
+	}
 
 	// page alignment from dumbvm.c
 	/* ALIGN REGION */
