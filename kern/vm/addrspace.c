@@ -406,7 +406,11 @@ int copy_region(region *old_region, region *new_region) {
 
 	region *current = old_region;  /* used to iterate over old_region list */
 	region *new_tail = NULL;	   /* last node of the new list */
+<<<<<<< HEAD
 
+=======
+	
+>>>>>>> moved as_copy into functions
 	new_region = NULL;
 
 	/* no regions in old address space */
@@ -423,10 +427,11 @@ int copy_region(region *old_region, region *new_region) {
 			return ENOMEM;
 		}
 
-		if (current == NULL) {
+		if (new_region == NULL) {
 			/* set node to be the head of new_region list */ 
 			new_region = new_node;
 			new_tail = new_region;
+
 		} else {
 			/* add to the end of the list */
 			new_tail->next = new_node;
