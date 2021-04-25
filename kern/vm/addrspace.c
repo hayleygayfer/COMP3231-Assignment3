@@ -68,8 +68,7 @@ as_create(void)
 	// as->as_stack = USERSTACK;
 	// No regions initially
 	as->as_regions = NULL;
-	as->as_pagetable = NULL;
-	// (paddr_t ***)alloc_kpages(1);
+	as->as_pagetable = (paddr_t ***)alloc_kpages(1);
 	// check if not enough memory
 	// if (as->as_pagetable == NULL) {
 	// 	kfree(as);
@@ -240,6 +239,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
 	// Error checking: Bad memory reference
 	if (as == NULL) {
+		panic("as==NULL");
 		return EFAULT;
 	}
 		
@@ -307,9 +307,10 @@ as_prepare_load(struct addrspace *as)
 {
 
 	//Error checking: bad memory reference
-	if (as == NULL)
+	if (as == NULL) {
+		panic("as==NULL in prep");
 		return EFAULT;
-
+	}
 	region *old_regions = as->as_regions;
 
 	// loop through and set all readonly regions to readwrite for prepare load
@@ -328,8 +329,10 @@ as_complete_load(struct addrspace *as)
 {
 
 	// Error checking: bad memory reference 
-	if (as == NULL) 
+	if (as == NULL)  {
+		panic("asnull in compl");
 		return EFAULT;
+	}
 
 	region *old_regions = as->as_regions;
 	while (old_regions != NULL) {
@@ -379,15 +382,13 @@ region *lookup_region(struct addrspace *as, vaddr_t faultaddress) {
     region *curr = as->as_regions;
 
     while (curr != NULL) {
-				if (faultaddress >= curr->as_vaddr) {
-					if ((faultaddress - curr->as_vaddr) < curr->size) {
-						return curr;
-					}
-				}
-        // if (curr->as_vaddr == faultaddress) {
-		    // return curr;
+		if (faultaddress >= curr->as_vaddr) {
+			if ((faultaddress - curr->as_vaddr) < curr->size) {
+				return curr;
+			}
+		}
         curr = curr->next;
-    }
+	}
 
     return NULL;
 }
@@ -399,9 +400,9 @@ paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
 
     paddr_t ***pagetable = as->as_pagetable;
 
-    uint32_t msb = get_msb (faultaddress);
-    uint32_t ssb = get_ssb (faultaddress);
-    uint32_t lsb = get_lsb (faultaddress);
+    uint32_t msb = get_msb(faultaddress);
+    uint32_t ssb = get_ssb(faultaddress);
+    uint32_t lsb = get_lsb(faultaddress);
 
 	/* invalid translation */
     if (pagetable == NULL || pagetable[msb] == NULL || pagetable[msb][ssb] == NULL)

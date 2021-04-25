@@ -107,10 +107,10 @@ int vm_init_third_level(paddr_t ***pagetable, uint32_t msb, uint32_t ssb) {
         return ENOMEM; /* out of memory */
     }
     bzero(pagetable[msb][ssb], PT_LVL3_SIZE * sizeof(paddr_t));
-    // for (int i = 0; i < PT_LVL3_SIZE; i++) {
-    //     /* zero-fill */
-    //     pagetable[msb][ssb][i] = 0;
-    // }
+    for (int i = 0; i < PT_LVL3_SIZE; i++) {
+        /* zero-fill */
+        pagetable[msb][ssb][i] = 0;
+    }
 
     return 0;
 }
@@ -128,7 +128,7 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
     
     /* allocate a kernel heap page */
     vaddr_t kpage = alloc_kpages(1);
-    bzero((void *)kpage, PAGE_SIZE);
+    // bzero((void *)kpage, PAGE_SIZE);
     
     if (kpage == 0) {
         return ENOMEM; /* out of memory */
@@ -245,15 +245,23 @@ void vm_bootstrap(void)
 int vm_fault(int faulttype, vaddr_t faultaddress) {
     /* Given a virtual address, find physical address and put inside TLB */
     if (curproc == NULL) {
+        panic("NULLcurproc");
         return EFAULT;
     }
     
-    if (faultaddress == 0) 
-        return EFAULT;
+    /* don't think we need to check this explicitly cause it'll be caught
+    when going through the regions */
+
+    // if (faultaddress == 0) {
+    //     panic("faultadd ==0")
+    //     return EFAULT;
+    // }
 
     /* write to a read only page was attempted */
-    if (faulttype == VM_FAULT_READONLY)
+    if (faulttype == VM_FAULT_READONLY) {
+        panic("readonly");
         return EFAULT;
+    }
     
     /* lookup page table for page table entry */
     paddr_t pte = lookupPTE(curproc->p_addrspace, faultaddress);
@@ -276,24 +284,30 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* check valid region */
     if (faultregion == NULL) {
-        return EFAULT;
+       panic("here %d %p", faultaddress, curproc->p_addrspace);
+       return EFAULT;
     }
+
     /* not writable */
-    if ((faulttype == VM_FAULT_WRITE) && ((faultregion->flags & PF_W) == 0))
+    if ((faulttype == VM_FAULT_WRITE) && ((faultregion->flags & PF_W) == 0)) {
+        panic("here1");
         return EFAULT;
+        
+    }
 
     /* Allocate frame, zerofill, insert PTE */
 
     if (curproc->p_addrspace == NULL) {
+        panic("her3e");
         return EFAULT;
     }
     paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
-
     int ret = vm_addPTE(pagetable, faultaddress);
 
-    if (ret)
+    if (ret) {
+        panic("ret");
         return ret;  
-
+    }
     return 0;
 }
 
