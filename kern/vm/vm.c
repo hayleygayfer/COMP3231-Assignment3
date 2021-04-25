@@ -243,7 +243,6 @@ void vm_bootstrap(void)
 }
 
 int vm_fault(int faulttype, vaddr_t faultaddress) {
-
     /* Given a virtual address, find physical address and put inside TLB */
     if (curproc == NULL) {
         return EFAULT;

@@ -378,12 +378,14 @@ region *lookup_region(struct addrspace *as, vaddr_t faultaddress) {
 
     region *curr = as->as_regions;
 
-	int i =0;
     while (curr != NULL) {
-        if (curr->as_vaddr == faultaddress) {
-		    return curr;
-		}
-		i++;
+				if (faultaddress >= curr->as_vaddr) {
+					if ((faultaddress - curr->as_vaddr) < curr->size) {
+						return curr;
+					}
+				}
+        // if (curr->as_vaddr == faultaddress) {
+		    // return curr;
         curr = curr->next;
     }
 
