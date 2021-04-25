@@ -63,7 +63,6 @@ as_create(void)
 	}
 
 	/* no regions initially*/
-	as->as_stack = USERSTACK;
 	as->as_regions = NULL;
 
 	/* Initialise 3 Level Page Table */ 
@@ -91,11 +90,10 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	}
 
 	/* initialise fields */
-	newas->as_stack = old->as_stack;
 	newas->as_regions = NULL;
 
 	/* create deep copy of regions */
-	int error = copy_region(old->as_regions, newas->as_regions);
+	int error = copy_region(old, newas);
 
 	if (error) {
 		as_destroy(newas);
@@ -205,14 +203,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
 	// Error checking: Bad memory reference
 	if (as == NULL) {
-		panic("as==NULL");
 		return EFAULT;
-	}
-		
-	// Not enough spare memory on stack
-	// changed this to > ...TODO 
-	if (vaddr + memsize > as->as_stack) {
-		return ENOMEM;
 	}
 
 	// page alignment from dumbvm.c
@@ -274,7 +265,6 @@ as_prepare_load(struct addrspace *as)
 
 	//Error checking: bad memory reference
 	if (as == NULL) {
-		panic("as==NULL in prep");
 		return EFAULT;
 	}
 	region *old_regions = as->as_regions;
@@ -296,7 +286,6 @@ as_complete_load(struct addrspace *as)
 
 	// Error checking: bad memory reference 
 	if (as == NULL)  {
-		panic("asnull in compl");
 		return EFAULT;
 	}
 
@@ -333,7 +322,6 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	as_define_region(as, USERSTACK - STACK_MEMSIZE, STACK_MEMSIZE, 1, 1, 0);
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
-	as->as_stack = USERSTACK;
 
 	return 0;
 }
@@ -393,15 +381,15 @@ paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress) {
 	return page_table_entry;
 }
 
-int copy_region(region *old_region, region *new_region) {
+int copy_region(struct addrspace *old, struct addrspace *newas) {
 
-	region *current = old_region;  /* used to iterate over old_region list */
-	region *new_tail = NULL;	   /* last node of the new list */
+	region *current = old->as_regions;  /* used to iterate over old_region list */
+	region *new_tail = NULL;	   		/* last node of the new list */
+	region *new_region = NULL;			/* stores the head of new_region */
 	
-	new_region = NULL;
-
 	/* no regions in old address space */
 	if (current == NULL) {
+		newas->as_regions = new_region;
 		return 0;
 	}
 
@@ -429,6 +417,8 @@ int copy_region(region *old_region, region *new_region) {
 		current = current->next;
 	}
 
+	newas->as_regions = new_region;
+	
 	return 0;
 }
 

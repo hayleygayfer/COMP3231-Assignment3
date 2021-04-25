@@ -66,7 +66,6 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
-        vaddr_t as_stack;
 
         /* 3 Level Page Table */
         paddr_t ***as_pagetable;
@@ -140,7 +139,7 @@ region *lookup_region(struct addrspace *as, vaddr_t faultaddress);
 paddr_t lookupPTE(struct addrspace *as, vaddr_t faultaddress);
 
 /* returns the head of the new region linked list, deepcopy of old region */
-int copy_region(region *old_region, region *new_region);
+int copy_region(struct addrspace *old, struct addrspace *newas);
 
 /* returns a deep copy of a node */
 region *create_copy_node(region *old_region);

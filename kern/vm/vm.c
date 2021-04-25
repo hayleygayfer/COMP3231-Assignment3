@@ -94,7 +94,7 @@ int vm_copy_entry(paddr_t ***old_pt, paddr_t ***new_pt, int msb, int ssb, int ls
         return ENOMEM;
     }
 
-    // bzero((void *)kpage, PAGE_SIZE);
+    bzero((void *)kpage, PAGE_SIZE);
     paddr_t old_frame = old_pt[msb][ssb][lsb] & PAGE_FRAME;
     vaddr_t old_page = PADDR_TO_KVADDR(old_frame);
 
@@ -104,10 +104,11 @@ int vm_copy_entry(paddr_t ***old_pt, paddr_t ***new_pt, int msb, int ssb, int ls
         vm_freePT(new_pt);
         return ENOMEM;
     } 
-    // TODO: dirty bit
-    
+
+    uint32_t dirty = old_pt[msb][ssb][lsb] & TLBLO_DIRTY;
+
     paddr_t new_frame = KVADDR_TO_PADDR(kpage);
-    new_pt[msb][ssb][lsb] = (new_frame & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
+    new_pt[msb][ssb][lsb] = (new_frame & PAGE_FRAME) | TLBLO_VALID | dirty;
 
     return 0;
 }
@@ -184,7 +185,7 @@ int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress) {
 }
 
 
-int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
+int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress, uint32_t dirty) {
 
     paddr_t p_fault = KVADDR_TO_PADDR(faultaddress);
 
@@ -199,7 +200,7 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
     
     /* allocate a kernel heap page */
     vaddr_t kpage = alloc_kpages(1);
-    // bzero((void *)kpage, PAGE_SIZE);
+    bzero((void *)kpage, PAGE_SIZE);
     
     if (kpage == 0) {
         free_kpages(kpage);
@@ -213,7 +214,7 @@ int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress) {
      * valid bit - valid mapping for the page (present/absent)
      * dirty bit - write privilege bit; indicates modified in memory 
      */
-    pagetable[msb][ssb][lsb] = (frame & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
+    pagetable[msb][ssb][lsb] = (frame & PAGE_FRAME) | TLBLO_VALID | dirty;
 
     return 0;
 }
@@ -345,7 +346,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* check valid region */
     if (faultregion == NULL) {
-       // panic("here %d %p", faultaddress, curproc->p_addrspace);
        return EFAULT;
     }
 
@@ -356,15 +356,18 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 
     /* Allocate frame, zerofill, insert PTE */
     if (curproc->p_addrspace == NULL) {
-        panic("her3e");
         return EFAULT;
     }
 
+    int dirty = 0;
+
+    if ((faultregion->flags & PF_W) == PF_W)
+        dirty = TLBLO_DIRTY;
+
     paddr_t ***pagetable = curproc->p_addrspace->as_pagetable;
-    int ret = vm_addPTE(pagetable, faultaddress);
+    int ret = vm_addPTE(pagetable, faultaddress, dirty);
 
     if (ret) {
-        panic("ret");
         return ret;  
     }
 
@@ -375,7 +378,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
         int spl = splhigh();
 
         uint32_t entry_hi = faultaddress & TLBHI_VPAGE;
-        uint32_t entry_lo = (pte & PAGE_FRAME) | TLBLO_VALID | TLBLO_DIRTY;
+        uint32_t entry_lo = (pte & PAGE_FRAME) | TLBLO_VALID | dirty;
 
         tlb_random(entry_hi, entry_lo);
         splx(spl);

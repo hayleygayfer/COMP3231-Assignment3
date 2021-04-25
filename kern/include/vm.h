@@ -63,7 +63,7 @@ uint32_t get_lsb (uint32_t addr);
 /*** PTE functions ***/
 
 /* add page table entry to page table */
-int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress);
+int vm_addPTE(paddr_t ***pagetable, vaddr_t faultaddress, uint32_t dirty);
 int vm_initPT(paddr_t ***pagetable, vaddr_t faultaddress);
 int vm_init_first_level(paddr_t ***pagetable);
 int vm_init_second_level(paddr_t ***pagetable, uint32_t msb);
