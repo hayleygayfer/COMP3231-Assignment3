@@ -106,7 +106,6 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 	/* initialise fields */
 	newas->as_regions = NULL;
-	newas->as_pagetable == NULL;
 
 	/* copying over the regions */
 
@@ -132,7 +131,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 		// append to the end of the new regions list
 
-		regions *curr = newas->as_regions;
+		region *curr = newas->as_regions;
 
 		if (curr == NULL) {
 			// head of the list
